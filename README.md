@@ -1,17 +1,16 @@
 # shell-scripts
 
 #### 介绍
-一些实用的Linux Bash/Shell脚本收藏集，Windows系统下Cygwin、WSL，Git for Windows Bash、Msys2等模拟环境中亦可使用
+一些实用的Linux Bash/Shell脚本收藏集，Windows系统下Cygwin、WSL，Git for Windows Bash、Msys2等模拟环境中亦可使用;
 
-#### 软件架构
-软件架构说明
+建立此仓库目的主要为了方便统一收集和管理不同功能的Shell脚本，同时对shell脚本代码增加版本控制，方便回溯；
 
+更多介绍与说明待后续补充！
 
-#### 安装教程
+#### 文章介绍
+1. 如欲获取更多详细介绍和运行截图等信息，请参看本人博客：
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+   > [博客园]([晴云孤魂 - 博客园 (cnblogs.com)](https://www.cnblogs.com/cnhack))
 
 #### 使用说明
 
