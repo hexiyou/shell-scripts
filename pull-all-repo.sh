@@ -7,7 +7,8 @@ excludeRepo=("business_card" "business_card_controller" "cargo_bridge" "cargo_br
 
 pushd "$(dirname $0)" &>/dev/null
 
-updateCount=0 #发起更新的仓库总的个数
+skipCount=0  #忽略执行更新操作的仓库个数
+updateCount=0  #发起更新的仓库总的个数
 conentUpdate=0  #有内容更新的仓库个数
 errorRepo=0   #拉取出错的仓库个数
 
@@ -27,6 +28,7 @@ do
 		if [[ "${repo}/" == "${dirRepo}" ]];then
 			echo -e "\033[42;37m \"${repo}\"位于排除列表，跳过更新... \033[0m\n"
 			skipRepo=1
+			let skipCount+=1
 			break #匹配到一个排除项，则跳出比对循环
 		fi
 	done
@@ -53,7 +55,7 @@ do
 	popd &>/dev/null
 done
 
-echo "累计共请求更新 $updateCount 个代码仓库，有 $conentUpdate 个有内容更新，有 $errorRepo 个更新出错..."
+echo "累计共请求更新 $updateCount 个代码仓库，跳过更新 $skipCount 个仓库，有 $conentUpdate 个有内容更新，有 $errorRepo 个更新出错..."
 [ $conentUpdate -gt 0 ] && echo "有内容更新的仓库：${contentRepo[*]} ..."
 
 popd &>/dev/null
