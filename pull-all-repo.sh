@@ -14,8 +14,9 @@ errorRepo=0   #拉取出错的仓库个数
 
 noConentUpdate="已经是最新的"
 contentRepo=() #有内容更新的Repo集合
+errContentRepo=() #更新出错的Repo集合
 
-tempTestRepo=("niuRenClub_admin/" "yunxiaotuoke-app/" "yunyoubao/" "xunlu-platform-page-amis/" "xunlu-platform-page/" "shell-scripts/")
+tempTestRepo=("Repo1/" "repo2/" "repo3/" "repo4/" "repo5/" "shell-scripts/")
 
 #for dirRepo in ${tempTestRepo[@]};
 for dirRepo in `ls -F |grep '/$'`;
@@ -43,6 +44,7 @@ do
 	pullLog=$(/usr/bin/git pull|tee /dev/tty||echo "git command error"|tee /dev/tty)
 	[ -z "$pullLog" ] && {
 		pullFlag=1
+		errContentRepo=(${errContentRepo[@]} "$dirRepo")
 		let errorRepo+=1
 	}
 	#echo "Git返回码：$pullFlag"
@@ -57,5 +59,6 @@ done
 
 echo "累计共请求更新 $updateCount 个代码仓库，跳过更新 $skipCount 个仓库，有 $conentUpdate 个有内容更新，有 $errorRepo 个更新出错..."
 [ $conentUpdate -gt 0 ] && echo "有内容更新的仓库：${contentRepo[*]} ..."
+[ $errorRepo -gt 0 ] && echo "更新出错的仓库：${errContentRepo[*]} ..."
 
 popd &>/dev/null
