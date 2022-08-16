@@ -2,22 +2,27 @@ trans() {
 	#劫持trans同名命令，缺省详细参数时自动判断需要中翻英还是英翻中
 	#执行脚本：/v/bin/trans
 	# Github：https://github.com/soimort/translate-shell
-	
+	# Tips： clip1|trans 或 cat /dev/clipboard|trans  （从剪贴板读取文本并翻译）
 	local header=$(cat<<EOF
 # trans 同名劫持函数
 # 执行脚本：/v/bin/trans
 # Github：https://github.com/soimort/translate-shell
+# 小技巧：支持从管道符导入需要翻译的内容：
+# eg：cat text.txt|trans
+#     clip1|trans 或 cat /dev/clipboard|trans  （从剪贴板读取文本并翻译）
 -----------
 # 你可以使用以下别名翻译为不同目标语言：
 `alias|grep 'alias trans-'`
 EOF
 )
-	[ $# -eq 0 ] && echo "$header" && /v/bin/trans --shell && return
+	[ $# -eq 0 ] && [ -t 0 ] && echo "$header" && /v/bin/trans --shell && return
 	OLD_IFS=$IFS
 	IFS=$(echo -e "\n")
 	local audioFile=""
 	local pointLang=0 #参数中是否指定了特定的翻译语言，1为已指定，0为未指定
 	local originOptions=( $@ )
+	local inputTmpFile="/tmp/text-to-translate-tmp.txt"
+	local inputFileOptions=( )
 	while [ $# -gt 0 ];
 	do
 		if [[ "${1,,}" == "-download-audio-as" ]];then
@@ -27,7 +32,12 @@ EOF
 		fi
 		shift
 	done
-	set -- ${originOptions[@]}
+	if [ ! -t 0 ];then
+		#cat >"$inputTmpFile"
+		cat|dos2unix -q|tr '\n' ' ' >"$inputTmpFile" # <-- 干掉换行
+		inputFileOptions=("-i" "$inputTmpFile")
+	fi
+	set -- ${inputFileOptions[@]} ${originOptions[@]}
 	#判断参数起始字符是否是中文字符，从而决定中翻英还是英翻中
 	if [ $pointLang -eq 0 ] && [[ "${1,,}" =~ ^[^0-9a-z\-] ]];then
 		/v/bin/trans :en $@
@@ -38,8 +48,9 @@ EOF
 	#是否自动播放语音文件（依赖于/v/bin/playaudio,实际调用程序cmdmp3）
 	#命令行播放音频第三方程序：cmdmp3（https://lawlessguy.wordpress.com/2015/06/27/update-to-a-command-line-mp3-player-for-windows/）
 	if [[ "$*" =~ "-download-audio-as" ]] && [ -f "$audioFile" ];then
-		print_color "播放语音文件..."
+		print_color "播放语音文件..."  #注意：翻译文本过长可能导致生成的语音文件无效，具体限制未知，尽量缩短文本，控制在40s以内；（可能是脚本处理过程错误，并非官方限制）
 		playaudio $audioFile
+		#cygstart $audioFile
 		[ -f "$audioFile" ] && rm -vf $audioFile
 	fi
 }
@@ -55,6 +66,8 @@ trans1() {
 	#eg： trans1 邵氏影院 :fr
 	#	  等效于
 	#	  trans1 :fr 邵氏影院   （指定翻译目标语种为法语）
+	#支持管道调用翻译并朗读语音；
+	# eg：  clip1|trans1 :en 或者 clip1|trans-en （翻译为英文并朗读）
 	#-------------------
 	# 别名调用示例（翻译为法语并朗读）：trans-fa 邵氏影院
 	if [[ "$1" =~ ^\: ]];then  
@@ -65,11 +78,18 @@ trans1() {
 	#set -x
 	OLD_IFS=$IFS
 	IFS=$(echo -e "\n")
-	trans $@ -download-audio-as /tmp/textaudio.mp3
+	if [ ! -t 0 ];then
+		#echo "有管道内容"
+		trans $@ -download-audio-as /tmp/textaudio.mp3 <<<$(cat)
+	else
+		#echo "无管道内容"
+		trans $@ -download-audio-as /tmp/textaudio.mp3 </dev/null
+	fi
 	IFS=$OLD_IFS
 	#set +x
 }
 alias fy3=trans1
+alias cfy='clip1|trans1' #翻译剪贴板中的内容
 #翻译支持的语言：https://github.com/soimort/translate-shell/wiki/Languages
 alias trans-fa='trans1 :fr' #翻译为法语
 alias trans-de='trans1 :de' #翻译为德语
@@ -93,5 +113,6 @@ alias trans-tai=trans-th
 alias trans-tl='trans1 :tl' #翻译为菲律宾
 alias trans-fei=trans-tl
 alias trans-zh='trans1 :zh-CN' #翻译为简体中文
+alias trans-cn=trans-zh
 alias trans-zhft='trans1 :zh-TW' #翻译为繁体中文
 alias trans-yue='trans1 :yue' #翻译为粤语
