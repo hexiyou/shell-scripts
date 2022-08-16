@@ -13,6 +13,8 @@ trans() {
 EOF
 )
 	[ $# -eq 0 ] && echo "$header" && /v/bin/trans --shell && return
+	OLD_IFS=$IFS
+	IFS=$(echo -e "\n")
 	local audioFile=""
 	local pointLang=0 #参数中是否指定了特定的翻译语言，1为已指定，0为未指定
 	local originOptions=( $@ )
@@ -27,10 +29,8 @@ EOF
 	done
 	set -- ${originOptions[@]}
 	#判断参数起始字符是否是中文字符，从而决定中翻英还是英翻中
-	OLD_IFS=$IFS
-	IFS=$(echo -e "\n")
 	if [ $pointLang -eq 0 ] && [[ "${1,,}" =~ ^[^0-9a-z\-] ]];then
-		/v/bin/trans :en $*
+		/v/bin/trans :en $@
 	else
 		/v/bin/trans $@
 	fi
