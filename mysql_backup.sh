@@ -48,6 +48,12 @@ mysql-backup-db() {
 	# -----------------------------
 	# 交互式选择要导出的数据库：
 	#  mysql-backup-db   OR    mysql-backup-db -h127.0.0.1 -uroot -proot
+	# -----------------------------
+	# 如何同时备份多个数据库？
+	# eg：
+	#  seq 1 1 10|xargs -i mybash --login -c "mysql-backup-db<<<{}"      #依次备份序号1~10的数据库
+	#  echo {1,2,3,5,8}|tr ' ' '\n'|xargs -i mybash --login -c "mysql-backup-db<<<{}"      #依次备份序号为1、2、3、5、8的数据库
+	#  echo {1,2,3,5,8}|tr ' ' '\n'|xargs -i /bin/env ASMyBash=true bash --login -c 'echo "==>{}"'   #使用原生bash，不使用mybash
 	local mysqlOptions="-h127.0.0.1 -uroot -proot"
 	local options=( )
 	local dbName
@@ -62,6 +68,12 @@ mysql-backup-db() {
 		echo -e "\tmysql-backup-db information_schema"
 		echo -e "\tmysql-backup-db -h127.0.0.1 -uroot -proot"
 		echo -e "\tmysql-backup-db -h127.0.0.1 -uroot -proot information_schema"
+		echo -e "\nTips：\t如何同时备份多个数据库？"
+		echo -e "    首先：\n\t\`mysql-list-db\` 查看有哪些数据库；\n    再次："
+		echo -e "\tseq 1 1 10|xargs -i mybash --login -c \"mysql-backup-db<<<{}\""
+		echo -e "\techo {1,2,3,5,8}|tr ' ' '\\\n'|xargs -i mybash --login -c \"mysql-backup-db<<<{}\""
+		echo -e "\techo {1..5}|tr ' ' '\\\n'|xargs -i mybash --login -c \"mysql-backup-db<<<{}\""
+		echo -e "\techo {1,2,3,5,8}|tr ' ' '\\\n'|xargs -i /bin/env ASMyBash=true bash --login -c \"mysql-backup-db<<<{}\""
 		return
 	fi
 
@@ -126,6 +138,7 @@ EOF
 	local sqlFileName="{prefix}{db}_{datetime}.sql"   #导出SQL文件名的命名格式
 	local dbList
 	local availableDB
+	local failureDB=( )  #导出失败的数据库
 	local dbListTmpFile
 	if [ $# -gt 0 ];then
 		mysqlOptions="$*"
@@ -152,8 +165,208 @@ EOF
 		) #按导出文件名命令规则生成文件名
 		echo "备份数据库：$db => $sqlFile"
 		/usr/bin/mysqldump $mysqlOptions --opt --single-transaction $db >$sqlFile
-		print_color "数据库 $db 导出完成！"
+		if [ $? -eq 0 ];then
+			print_color "数据库 $db 导出完成！"
+		else
+			print_color 40 "数据库 $db 导出失败 ..."
+			failureDB=(${failureDB[@]} "$db")
+		fi
 	done
 	print_color 33 "All things Done..."
+	if [ ! -z "${failureDB[@]}" ];then
+		print_color 40 "警告：以下 ${#failureDB[@]} 个数据库导出失败："
+		echo "${failureDB[@]}"|tr ' ' '\n'
+	fi
 	[ -f "$dbListTmpFile" ] && rm -f "$dbListTmpFile"
 }
+
+mysql-import-all-db() {
+	#导入所有（多个）SQL备份文件到MySQL
+	echo "TODO ..."
+	return
+}
+
+_get_unix_pid_by_port() {
+	#通过监听端口，获取相关联的unix进程pid，Windows pid转Unix pid
+	# $1 ---> 要查询的端口号；$2 [--full] 是否返回Cygwin完整进程信息
+	local port="$1"
+	[ -z "$1" ] && echo "缺少参数 \$1,请传递要查询的端口号！" && return
+	local psInfo=$(cmd /c netstat -ano -p TCP|dos2unix -q|grep -E ":${port}\b"|grep 'LISTENING')
+	if [ -z "$psInfo" ];then
+		#echo "没有相关进程！"
+		return 1
+	fi
+	local winPid=$(echo "$psInfo"|awk '{print $NF;exit}')
+	#echo "winPid：$winPid"
+	local unixPs=$(ps -ae|grep -E "\b${winPid}\b")
+	if [ -z "$unixPs" ];then
+		#echo "已找到 port：$port 相关进程，但该进程不是Cygwin进程！"
+		return 2
+	fi
+	if [[ "${2,,}" == "--full" ]];then #$2指定参数--full时，返回完整的进程信息，而不是pid
+		echo "$unixPs"
+		return 0
+	fi
+	local pid=$(echo "$unixPs"|awk '{if($4=='"${winPid}"'){print $1;exit}}')
+	echo "$pid"
+}
+
+mysql-backup-db-via-ssh() {
+	#通过SSH隧道备份服务器上MySQL某个数据库
+	#默认映射服务器3306端口到本地4306端口，mysql直接连接127.0.0.1:4306即可；
+	#------------------------------------------
+	# $1 ---> 要连接的主机名称（在~/.ssh/config中事先配置）
+	# $2...$n 其余为MySQL用的选项参数，传递给mysql-backup-db函数
+	
+	local targetHost         #第一个非短横线（-）开始的参数视为目标主机
+	local dbName	         #第二个非短横线（-）开始的参数视为数据库名称
+	local localAddr="127.0.0.1" #绑定的本地地址。默认127.0.0.1，若要局域网可访问，可设置绑定地址为0.0.0.0
+	local localPort=4306   #MySQL映射到本地要使用的本地端口
+	local remotePort=3306  #MySQL服务器的远程端口
+	local sshOptions=""    #连接SSH服务器使用的选项，传递给/usr/bin/ssh，默认为空
+	local newSshTunnel=1    #是否创建新的SSH隧道（记录已有占用端口SSH隧道的操作）
+	local sshOnly=0    #是否仅创建SSH隧道端口映射，不进行数据库备份;0-否、1-是
+	local killSshPS=0      #备份完毕是否杀死SSH隧道进程，0-保留，1-杀死
+	local localMysqlOptions="-h127.0.0.1 -P4306 -uroot -p"  #连接本地MySQL端口使用参数
+	
+	_print_usage() {
+		echo -e "mysql-backup-db-via-ssh：\n\t连接远程服务器，通过SSH隧道映射远程MySQL端口到本机端口，并备份（导出）某个数据库到SQL文件；"
+		echo -e "\t默认隧道仅绑定127.0.0.1，仅可本机访问，局域网、外网不可访问，如需允许它机访问，请使用 \`-b\` 参数（eg：\`-b 0.0.0.0\`）；"
+		echo -e "\t注意：传递mysql参数选项时，选项名与选项值不可分开，eg：指定用户名用\`-uroot\`而不可用\`-u root\`；"
+		echo -e "\nUsage：\n\tmysql-backup-db-via-ssh [-p localport] [-rp remoteport] [-b local~bind-address] [-so ssh~options] [-lo local~mysql~options] *targethost [dbname]\n"
+		echo -e "--------------------------------------------------------------"
+		echo -e "\t-p       指定映射到本地使用的端口，（连接MySQL时，使用127.0.0.1：port）；"
+		echo -e "\t-rp      指定远程主机MySQL端口，（默认3306，如果MySQL服务更改了端口则需要指定此参数）；"
+		echo -e "\t-b       本地绑定的网卡接口，（默认127.0.0.1）；"
+		echo -e "\t-so      传递给ssh命令的选项参数，请用引号包裹完整的参数值：eg：-so '-J vps1'（更多参数说明请查询ssh手册\`man ssh\`）；"
+		echo -e "\t-lo|-mo  传递给mysql命令的选项参数，用于指定连接本地所用的MySQL主机地址、用户名、密码等信息，会替换localMysqlOptions变量，端口信息（-P）自动维护，无需填写；"
+		echo -e "\t--kill   备份完成后，是否杀死SSH隧道进程（默认不终结进程）；"
+		echo -e "\t--sshonly 仅为MySQL创建本地端口映射（SSH隧道），不进行数据库备份；"
+		echo -e "\t*targetHost 【必需】要连接的主机名称，在~/.ssh/config中配置，也可以使用临时主机形式 \`root@192.168.1.100\`"
+		echo -e "\tdbName  【可选】要备份的数据库名称，缺省时可输入序号进行交互式选择；"
+		echo -e "--------------------------------------------------------------"
+		echo -e "\nExample：\n\tmysql-backup-db-via-ssh kunming"
+		echo -e "\tmysql-backup-db-via-ssh kunming wordpress"
+		echo -e "\tmysql-backup-db-via-ssh -so '-J honkongvps' kunming wordpress"
+		echo -e "\tmysql-backup-db-via-ssh -lo '-h127.0.0.1 -uroot -proot' kunming"
+		echo -e "\tmysql-backup-db-via-ssh -p 4306 -lo '-h127.0.0.1 -uroot -proot' kunming"
+		echo -e "\tmysql-backup-db-via-ssh -p 4306 -rp 3307 -lo '-h127.0.0.1 -uroot -proot' kunming information_schema"		
+	}
+	
+	if [[ "${*,,}" == "-h" || "${*,,}" == "--help" ]];then	
+		_print_usage && return
+	fi
+	
+	while [ $# -gt 0 ];
+	do
+		if [[ "$1" == "-p" ]];then #是否指定了本地端口
+			localPort=$2
+			shift 2
+		elif [[ "$1" == "-rp" ]];then #是否指定了远程端口
+			remotePort="$2"
+			shift 2
+		elif [[ "$1" == "-b" ]];then #是否指定了本地绑定地址
+			localAddr="$2"
+			shift 2
+		elif [[ "$1" == "-lo" || "$1" == "-mo" ]];then #是否本地MySQL选项（lo==local option|mo == mysql option）
+			localMysqlOptions="$2"
+			shift 2
+		elif [[ "$1" == "-so" ]];then #是否有SSH选项（so==ssh option）
+			sshOptions="$2"
+			shift 2
+		elif [[ "$1" == "--killssh" ]];then #是否杀死SSH隧道进程
+			killSshPS=1
+			shift 1
+		elif [[ "$1" == "--sshonly" ]];then #是否仅创建SSH隧道
+			sshOnly=1
+			shift 1
+		fi
+		if [[ ! "$1" =~ ^\- ]];then #处理非短横线-开头的参数；
+			if [ -z "$targetHost" ];then
+				targetHost="$1"
+			elif [ -z "$dbName" ];then
+				dbName="$1"
+			else
+				break #如果还有多余的参数，丢掉，暂时用不到
+			fi
+			shift 1
+		fi
+	done
+	
+	[ -z "$targetHost" ] && print_color 40 "请指定要连接的主机名！" && _print_usage && return
+	while :;
+	do
+		#检测本地端口是否已经被占用！
+		/usr/bin/nc -w 2 -v 127.0.0.1 $localPort &>/dev/null
+		if [ $? -eq 0 ];then   #本地端口被占用，按情况区分是ssh进程占用，还是其他进程占用;
+			local localPortInfo=$(_get_unix_pid_by_port $localPort --full 2>/dev/null)
+			if [ -z "$localPortInfo" ];then #Windows进程端口占用
+				echo "$localPort端口被其他Windows进程（非Cygwin进程）占用！自动更换其他端口！"
+				let localPort+=1 
+				print_color "localPort ==> $localPort"
+				continue
+			else  #有其他Cygwin进程占用端口的情况
+				echo "$localPortInfo"
+				echo "$localPortInfo"|grep -iE 'ssh\b' &>/dev/null
+				if [ $? -eq 0 ];then
+					print_color 40 "已有占用端口的SSH隧道存在！"
+					read -p "是否杀死隧道进程或跳过SSH连接（使用已有的SSH隧道）？Kill/continue/quit（k/c/q，默认c）" operateTunnel
+					if [[ "${operateTunnel,,}" == "quit" || "${operateTunnel,,}" == "q" ]];then
+						print_color 40 "退出操作..."
+						return
+					elif [[ "${operateTunnel,,}" == "kill" || "${operateTunnel,,}" == "k" ]];then
+						local pid=$(_get_unix_pid_by_port $localPort)
+						print_color 40 "终止进程 pid：$pid ..."
+						kill -9 $pid
+						break
+					else
+						newSshTunnel=0
+						break
+					fi
+				else
+					print_color 40 "$localPort端口被Cygwin进程占用，自动更换端口号！"
+					let localPort+=1 
+					print_color "localPort ==> $localPort"
+					continue
+				fi
+			fi
+			return
+		fi
+		break
+	done
+	if [ $newSshTunnel -eq 1 ];then
+		print_color 40 "连接到 $targetHost，并创建SSH隧道..."
+		#echo /usr/bin/ssh $sshOptions -C -N -f -g -L $localAddr:$localPort:127.0.0.1:$remotePort $targetHost #127.0.0.1仅绑定本地网口，禁止局域网或外网访问
+		sshCommand="/usr/bin/ssh $sshOptions -C -N -f -g -L $localAddr:$localPort:127.0.0.1:$remotePort $targetHost"
+		#echo "$sshCommand"
+		
+		#使用eval可在命令字符串中包含函数名并调用（比如，运行ssh、ssh2函数，而非ssh原生命令）#
+		#Bug：但使用eval会导致_get_unix_pid_by_port取不到进程号，取到的可能是已销毁的eval本身的进程！
+		#eval $sshCommand 
+		
+		$sshCommand 
+		/usr/bin/nc -w 3 -v 127.0.0.1 $localPort &>/dev/null
+		if [ $? -ne 0 ];then
+			print_color 9 "本地端口测试失败，可能是SSH没有登录成功，请检查！"
+			return
+		fi
+	fi
+	localMysqlOptions=$(echo "$localMysqlOptions"|sed -r 's/\-P[^ ]+ /-P'"${localPort}"' /')    #防止端口占用时，动态切换端口后，端口号不对
+	if [ $sshOnly -eq 1 ];then
+		print_color 40 "MySQL服务本地SSH隧道已创建，请使用以下参数进行连接："
+		echo "mysql $localMysqlOptions"
+		echo "mysqldump --opt --single-transaction -A $localMysqlOptions"
+		return
+	fi
+	print_color 40 "连接本地MySQL端口备份数据..."
+	if [ -t 0 ];then
+		mysql-backup-db $localMysqlOptions
+	else #有管道数据输入
+		mysql-backup-db $localMysqlOptions </dev/stdin
+	fi
+	[ $killSshPS -eq 1 ] && {
+		killall ssh  #TODO：由于目前进程号取不准，默认杀死所有ssh进程！
+	}
+}
+alias ssh-backup-db='mysql-backup-db-via-ssh'
+alias ssh-export-db='mysql-backup-db-via-ssh'
