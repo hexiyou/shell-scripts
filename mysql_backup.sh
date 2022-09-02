@@ -38,7 +38,7 @@ mysql-list-db() {
 	return $?
 }
 
-mysql-backup-db() {
+_mysql-backup-db() {
 	#调用mysqldump按数据库名称备份单个数据库到SQL文件，有别于mysql-backup-all-db
 	#注意使用此函数传递MySQL参数时不要将参数选项名与选项值分开（eg:指定mysql用户只能写作 -uroot，不能写作 -u root）
 	# -----------------------------
@@ -119,10 +119,135 @@ mysql-backup-db() {
 	) #按导出文件名命令规则生成文件名
 	echo "备份数据库：$dbName => $sqlFile"
 	/usr/bin/mysqldump $mysqlOptions --opt --single-transaction $dbName >$sqlFile
-	print_color "数据库 $dbName 导出完成！"
+	if [ $? -eq 0 ];then
+		print_color "数据库 $dbName 导出完成！"
+	else
+		print_color 40 "警告：$dbName 导出失败！"
+	fi
 	print_color 33 "All things Done..."
 }
 alias mysql-export-db='mysql-backup-db'
+
+_mysql-backup-db-by-name() {
+	#调用mysqldump按数据库名称备份单个数据库到SQL文件，有别于mysql-backup-all-db
+	#注意使用此函数传递MySQL参数时不要将参数选项名与选项值分开（eg:指定mysql用户只能写作 -uroot，不能写作 -u root）
+	# -----------------------------
+	# eg：
+	# -参数指定数据库直接备份： mysql-backup-db huicmf_webman
+	# -指定数据库名称的同时指定MySQL参数选项：mysql-backup-db -h127.0.0.1 -uroot -proot huicmf_webman
+	# -----------------------------
+	# 交互式选择要导出的数据库：
+	#  mysql-backup-db   OR    mysql-backup-db -h127.0.0.1 -uroot -proot
+	# -----------------------------
+	# 如何通过名称同时备份多个数据库？
+	# eg：
+	# mysql-backup-db-by-name <dblist.txt
+	local mysqlOptions="-h127.0.0.1 -uroot -proot"
+	local options=( )
+	local dbName
+	local sqlFilePrefix=""  #导出SQL备份文件名的前缀;eg：localhost_
+	local sqlFileName="{prefix}{db}_{datetime}.sql"   #导出SQL文件名的命名格式
+	
+	if [[ "${*,,}" == "-h" || "${*,,}" == "--help" ]];then
+		echo -e "mysql-backup-db-by-name：\n\t导出某个数据库到SQL备份文件（可通过管道导入数据库名称一次性备份多个库）；"
+		echo -e "\t注意：传递mysql参数选项时，选项名与选项值不可分开，eg：指定用户名用\`-uroot\`而不可用\`-u root\`；"
+		echo -e "\nUsage：\n\tmysql-backup-db-by-name [mysqldump~options...] [dbname]"
+		echo -e "\nExample：\n\tmysql-backup-db-by-name"
+		echo -e "\tmysql-backup-db-by-name information_schema"
+		echo -e "\tmysql-backup-db-by-name -h127.0.0.1 -uroot -proot"
+		echo -e "\tmysql-backup-db-by-name -h127.0.0.1 -uroot -proot information_schema"
+		echo -e "\nTips：\t已知数据库名称，同时备份多个数据库？"
+		echo -e "\t一行一个名称，保存至临时文件或剪贴板，通过命令行管道传递给 \`mysql-backup-db-by-name\` 函数即可；"
+		cat <<-'EOF'
+`cat>dblist.txt<<EOF`
+information_schema
+mysql
+performance_schema
+EOF 
+---
+`mysql-backup-db-by-name <dblist.txt`
+或：
+`mysql-backup-db-by-name </dev/clipboard`
+EOF
+		return
+	fi
+
+	while [ $# -gt 0 ];
+	do	
+		if [[ "$1" =~ ^\- ]];then #以短横线开头的参数视为MySQL命令行选项
+			options=(${options[@]} "$1")
+		else
+			dbName="$1"
+		fi
+		shift
+	done
+	[ ! -z "${options[*]}" ] && mysqlOptions="${options[*]}"
+	#[ -z "$dbName" ] && print_color 40 "请指定要备份的数据库名称！" && return
+	if [ -z "$dbName" ];then #参数没有指定数据库名称，则提供交互式选择！
+		local selectDB
+		local dbList=$(mysql-list-db $mysqlOptions||echo "-1") #查询失败返回-1
+		[ $(echo "$dbList"|tail -n 1) = "-1" ] && print_color 9 "获取数据库列表失败，请检查MySQL连接参数（服务器地址、用户名、密码等）是否正确！" && return
+		dbList=$(echo "$dbList"|sed '1,2d')
+		if [ -t 0 ];then #无管道数据传入时才显示数据库列表
+			echo "当前服务器可用的数据库："
+			echo "$dbList"|awk '{print NR")："$0}'
+		fi
+		while [ -z "$selectDB" ];
+		do
+			read -p "输入数据库名称(注意：不是序号！)选择（输入 0 或 q 退出操作，p 再次打印数据库清单）：" selectDB
+			if [ -z "$selectDB" ];then
+				continue
+			elif [[ "${selectDB,,}" == "0" || "${selectDB,,}" == "q" ]];then
+				print_color 40 "退出操作..."
+				return
+			elif [[ "${selectDB,,}" == "p" || "${selectDB,,}" == "l" ]];then #再次打印数据库列表
+				echo "$dbList"|awk '{print NR")："$0}'
+				selectDB="" && continue
+			fi
+			dbName=$(echo "$dbList"|awk '{if($0=="'"${selectDB,,}"'"){print;exit}}'||selectDB="")
+			if [ -z "$dbName" ];then
+				print_color 40 "无效选择，数据库 $selectDB 不存在！"
+				selectDB=""
+				if [ ! -t 0 ];then
+					return
+				fi
+			fi
+		done
+	fi
+	local sqlFile=$(echo "$sqlFileName"|\
+	sed -e "s/{prefix}/${sqlFilePrefix}/g" \
+		-e "s/{db}/${dbName}/g" \
+		-e "s/{datetime}/$(date +'%Y%m%d_%H%M')/g" \
+	) #按导出文件名命令规则生成文件名
+	echo "备份数据库：$dbName => $sqlFile"
+	/usr/bin/mysqldump $mysqlOptions --opt --single-transaction $dbName >$sqlFile
+	if [ $? -eq 0 ];then
+		print_color "数据库 $dbName 导出完成！"
+	else
+		print_color 40 "警告：$dbName 导出失败！"
+	fi
+	print_color 33 "All things Done..."
+}
+alias mysql-backup-db2='_mysql-backup-db-by-name'
+
+mysql-backup-db() {
+	#wrapper函数，自动判断按序号还是按数据库名导出数据库
+	if [ -t 0 ];then
+		_mysql-backup-db $@
+	else #有管道数据传入
+		local stdin=$(cat)
+		expr $stdin + 0 &>/dev/null
+		if [ $? -eq 0 ];then
+			_mysql-backup-db $@ </dev/stdin   #按序号备份文件夹
+		else
+			#_mysql-backup-db-by-name $@ </dev/stdin #按数据库名称备份文件夹
+			for db in `echo $stdin`;
+			do
+				_mysql-backup-db-by-name $@ <<<"$db"
+			done
+		fi
+	fi
+}
 
 mysql-backup-all-db() {
 	#调用mysqldump按数据库名称依次备份所有数据库到SQL文件
@@ -173,8 +298,8 @@ EOF
 		fi
 	done
 	print_color 33 "All things Done..."
-	if [ ! -z "${failureDB[@]}" ];then
-		print_color 40 "警告：以下 ${#failureDB[@]} 个数据库导出失败："
+	if [ ! -z "${failureDB[*]}" ];then
+		print_color 40 "警告：以下 ${#failureDB[*]} 个数据库导出失败："
 		echo "${failureDB[@]}"|tr ' ' '\n'
 	fi
 	[ -f "$dbListTmpFile" ] && rm -f "$dbListTmpFile"
