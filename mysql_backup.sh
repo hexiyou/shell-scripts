@@ -8,7 +8,9 @@ mysql() {
 		OLD_IFS=$IFS
 		IFS=$(echo -e "\n") #兼容参数值带空格的情况：eg：mysql -h127.0.0.1 -uroot -proot -e 'show databases;'
 		/usr/bin/mysql $@
+		local ret=$?
 		IFS=$OLD_IFS
+		return $ret
 	elif [ -f ./composer.json -a -f ./.env ];then #判断是否在Laravel项目的根目录路径下
 		local dbHost=$(cat .env|awk -F '=' '/DB_HOST/{gsub(" ","");print $2;exit}')
 		local dbPort=$(cat .env|awk -F '=' '/DB_PORT/{gsub(" ","");print $2;exit}')
@@ -27,15 +29,36 @@ mysql-list-db() {
 	#列出数据库：查看指定的MySQL服务器端有哪些数据库
 	local mysqlOptions="-h127.0.0.1 -uroot -proot"
 	local command
+	local options=( )
+	local noBanner
+	local retList
+	local retCode=0
+	while [ $# -gt 0 ];
+	do
+		if [ "${1,,}" == "--nobanner" ];then
+			noBanner="1"
+		else
+			options=(${options[@]} "$1")
+		fi
+		shift
+	done
+	set -- "${options[@]}"
 	if [ $# -gt 0 ];then
 		command="/usr/bin/mysql $@ -e 'show databases;'"
 	else
 		command="mysql $mysqlOptions -e 'show databases;'"
 	fi
 	echo "$command"
-	eval $command
-	#echo "eval退出状态：$?"
-	return $?
+	if [ -z "$noBanner" ];then
+		eval $command 
+		retCode=$?
+	else
+		retList=$(eval "$command" 2>/dev/tty)
+		[ -z "$retList" ] && return 2
+		echo "$retList"|sed '1d'
+	fi
+	#echo "eval退出状态：$retCode"
+	return $retCode
 }
 
 _mysql-backup-db() {
@@ -91,7 +114,7 @@ _mysql-backup-db() {
 	if [ -z "$dbName" ];then #参数没有指定数据库名称，则提供交互式选择！
 		local selectDB
 		local dbList=$(mysql-list-db $mysqlOptions||echo "-1") #查询失败返回-1
-		[ $(echo "$dbList"|tail -n 1) = "-1" ] && print_color 9 "获取数据库列表失败，请检查MySQL连接参数（服务器地址、用户名、密码等）是否正确！" && return
+		[ "$(echo "$dbList"|tail -n 1)" = "-1" ] && print_color 9 "获取数据库列表失败，请检查MySQL连接参数（服务器地址、用户名、密码等）是否正确！" && return
 		dbList=$(echo "$dbList"|sed '1,2d')
 		echo "请选择要备份的数据库："
 		echo "$dbList"|awk '{print NR")："$0}'
@@ -241,7 +264,7 @@ mysql-backup-db() {
 			_mysql-backup-db $@ </dev/stdin   #按序号备份文件夹
 		else
 			#_mysql-backup-db-by-name $@ </dev/stdin #按数据库名称备份文件夹
-			for db in `echo $stdin`;
+			for db in `echo "$stdin"|dos2unix -q|tr -d ' '`; #兼容性处理
 			do
 				_mysql-backup-db-by-name $@ <<<"$db"
 			done
