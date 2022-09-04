@@ -342,64 +342,6 @@ EOF
 	[ -f "$dbListTmpFile" ] && rm -f "$dbListTmpFile"
 }
 
-mysql-import-db() {
-	#恢复备份：导入SQL文件到MySQL服务器（导入单个数据库）；
-	local mysqlOptions="-h127.0.0.1 -uroot -proot"
-	local options=( )
-	local dbName
-	local sqlFile
-	
-	_print_usage() {
-		echo -e "mysql-import-db|mysql-restore-db：\n\t还原MySQL数据库：导入SQL文件到某个数据库（可参数指定目标数据库和SQL文件，也可交互式选择）；"
-		echo -e "\t注意：传递mysql参数选项时，选项名与选项值不可分开，eg：指定用户名用\`-uroot\`而不可用\`-u root\`；"
-		echo -e "\nUsage：\n\tmysql-import-db [mysql~commandline~options...] [dbname] [sqlfile]"
-		echo -e "\nExample：\n\tmysql-import-db"
-		echo -e "\tmysql-import-db example_db"
-		echo -e "\tmysql-import-db example_db export_0011.sql"
-		echo -e "\tmysql-import-db -h127.0.0.1 -P3307 -uroot -proot"
-		echo -e "\tmysql-import-db -h127.0.0.1 -uroot -proot example_db"
-		echo -e "\tmysql-import-db -h127.0.0.1 -uroot -proot example_db export_0011.sql"
-	}
-	
-	if [[ "${*,,}" == "-h" || "${*,,}" == "--help" ]];then
-		_print_usage && return
-	fi
-
-	while [ $# -gt 0 ];
-	do	
-		if [[ "$1" =~ ^\- ]];then #以短横线开头的参数视为MySQL命令行选项
-			options=(${options[@]} "$1")
-		elif [ -z "$dbName" ];then #第一个非短横线开头的参数作为数据库名
-			dbName="$1"
-		elif [ -z "$sqlFile" ];then #第二个非短横线开头的参数作为SQL文件名或文件路径
-			sqlFile="$1" 
-		fi
-		shift
-	done
-	[ ! -z "${options[*]}" ] && mysqlOptions="${options[*]}"
-	echo "Here To DO"
-	return
-}
-alias mysql-restore-db='mysql-import-db'
-
-mysql-import-all-db() {
-	#恢复备份：导入所有（多个）SQL备份文件到MySQL
-	echo "TODO ..."
-	return
-}
-
-mysqlimport() {
-	#劫持mysqlimport命令；
-	#See Also：https://www.runoob.com/mysql/mysql-database-import.html
-	# eg：
-	# mysqlimport -u root -p --local mytbl dump.txt
-	# mysqlimport -u root -p --local --fields-terminated-by=":" \
-	#	--lines-terminated-by="\r\n"  mytbl dump.txt
-	# mysqlimport -u root -p --local --columns=b,c,a \
-    #	mytbl dump.txt
-	/usr/bin/mysqlimport $@
-}
-
 _get_unix_pid_by_port() {
 	#通过监听端口，获取相关联的unix进程pid，Windows pid转Unix pid
 	# $1 ---> 要查询的端口号；$2 [--full] 是否返回Cygwin完整进程信息
