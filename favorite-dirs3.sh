@@ -3,10 +3,19 @@
 #子shell允许调用全局登录函数和alias别名，Ctrl+D退回选择菜单进行下一步操作；
 favorite-dirs() {
 	#使用资源管理器快速打开Windows系统常用文件夹
+	# See Also：Windows SpecialFolders Property：
+	# https://docs.microsoft.com/en-us/previous-versions//0ea7b5xe(v=vs.85)?redirectedfrom=MSDN
+	# See Also 2 Shell.NameSpace:
+	# https://docs.microsoft.com/zh-cn/windows/win32/shell/shell-namespace?redirectedfrom=MSDN
+	# See Also 3：Getting special Folder path for a given user in Jscript
+	# https://stackoverflow.com/questions/5571747/getting-special-folder-path-for-a-given-user-in-jscript
 	local mydirs=$(cat<<EOF
 	Shell:downloads
 	Shell:documents
 	Shell:Sendto
+	Shell:Recent
+	Shell:Desktop
+	Shell:Favorites
 	Shell:Quick Launch
 	Shell:AppsFolder
 	Shell:AppData
@@ -15,18 +24,42 @@ favorite-dirs() {
 	Shell:common startup
 	Shell:programfiles
 	Shell:programfilesx86
+	Shell:AllUsersDesktop
+	Shell:AllUsersStartMenu
+	Shell:AllUsersPrograms
+	Shell:AllUsersStartup
+	Shell:Fonts
+	Shell:MyDocuments
+	Shell:NetHood
+	Shell:PrintHood
+	Shell:Programs
+	Shell:StartMenu
+	Shell:Startup
+	Shell:Templates
 	%UserProfile%
 	%UserProfile%\.ssh
+	%ALLUSERSPROFILE%
+	%PUBLIC%
 	Shell:ProgramFiles\git
 	Shell:ProgramFiles\git\etc
 	Shell:AppData\Google
 	Shell:programfilesx86\NetSarang
+	%ProgramFiles%
+	%ProgramFiles(x86)%
+	%ProgramData%
+	%ProgramW6432%
+	%PSModulePath%
+	%SCOOP%
+	%SCOOP_GLOBAL%
+	%GIT_INSTALL_ROOT%
+	%TEMP%
 	D:\MySelf\shell-scripts
 	D:\Work\Documents
 EOF
 )
 	#追加paths/d函数使用的书签文件到本函数目录列表；
 	local mydirs="$mydirs"$'\n'"$(cat /v/bin/dirs.conf)"
+	mydirs=$(echo "$mydirs"|awk '{gsub(/^\s*/,"");print}') #去除目录名称开头的空格
 	local openerTool="explorer.exe"
 	while :;
 	do
@@ -70,6 +103,12 @@ EOF
 				if [ ! -z "$targetDir" ];then
 					#echo "Open Dir $targetDir ..."
 					#cmd /c explorer.exe "$targetDir"
+					if [[ "${targetDir,,}" =~ ^shell: ]];then #如果文件夹路径是 WshShell SpecialFolders，则用VBS先进行转换；
+						#echo "转换Shell路径到常规路径..."
+						local vbsShellApplication=$(cygpath -aw "/v/vbs/Get-Shell-Application.vbs")
+						local _targetDir=$(cscript.exe //nologo "$vbsShellApplication" "$targetDir"|dos2unix -q|iconv -f GBK -t UTF-8)
+						[ ! -z "$_targetDir" ] && local targetDir="$_targetDir" #只有在获取到有效的转换后路径才修改原始路径变量
+					fi
 					if [[ "$targetDir" =~ ^[a-z]:\\ || "$targetDir" =~ ^/cygdrive/ || "$targetDir" =~ ^/ ]];then #常规路径模式下判断文件夹是否存在
 						if [ ! -e "$targetDir" ];then
 							#echo -e "targetDir not exist!\n==>$targetDir"
@@ -118,7 +157,7 @@ EOF
 				for dir in ${myDirArr[@]};
 				do 
 					#echo "open dir:$dir"
-					[[ "$dir" == "0" ]] && { echo "exit...";return; }
+					[[ "$dir" == "0" ]] && { echo "exit...";set +f;return; }
 					open-single-dir $dir
 				done	
 			fi					
