@@ -1,3 +1,4 @@
+#!/bin/bash
 ssh-tar-dir() {
 	#通过SSH直接备份压缩某个文件到本地（通过管道直接传递压缩数据流）
 	#实际调用形似ssh 'tar xxxx'|cat >file.bin 这样的命令；
