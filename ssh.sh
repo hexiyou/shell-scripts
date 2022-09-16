@@ -3,7 +3,7 @@
 #在命令行交互界面可以 unset ssh 反定义，卸载本函数
 #单次执行时临时禁用本函数可以使用双反斜杠转义，如：\\ssh open，也可以直接使用大写的SSH避开调用本函数
 #使用ssh作为管道的时候，注意屏蔽此函数，否则会导致终端输出的文本附加到文件中，比如以下命令会出问题。
-#ssh open 'dd if=/usr/sbin/trojan-go'|ssh suse 'dd of=/root/trojan-go'
+#ssh open 'dd if=/usr/sbin/file_bin'|ssh suse 'dd of=/root/file_bin'
 ssh() {
 	#匹配到可能使用管道符的情况则直接调用ssh程序，不做任何处理
 	if [ $# -eq 2 ] && ([[ "$2" =~ "tar " || "$2" =~ "dd " || "$2" =~ "cat " || "$2" =~ "7za " || "$2" =~ "gzip " || "$2" =~ "xz " || "$2" =~ "zip " || "$2" =~ "rar " || "$2" =~ "curl " ]]);then
@@ -34,7 +34,7 @@ ssh() {
 			local proxyServer=$(echo $ProxyFind|awk -F '' '{gsub(/^[ \t\r\n]*/,"",$0);r=match($0,/(([0-9]{1,3}\.){3}[0-9]{1,3}[:][0-9]{2,5})/,arr);print arr[1]}')
 			#echo $ProxyFind|awk -F '' '{gsub(/^[ \t\r\n]*/,"",$0);print $0;r=match($0,/(([0-9]{1,3}\.){3}[0-9]{3}[:][0-9]{2,5})/,arr);print "Return: "r;print "Rstart & RLENGTH：" RSTART" " RLENGTH;print arr[1];for(i in arr){print "subscript:"i"\t""valus:"arr[i]}}'
 			#echo -e "$proxyServer"
-			curl -sS -m 1 --connect-timeout 1 -x ${proxyType}${proxyServer} http://v.ynit.top/ipfull/
+			curl -sS -m 1 --connect-timeout 1 -x ${proxyType}${proxyServer} http://xxxx.xxxx.xxx/  #xxxx.xxxx.xxx为查询IP归属地的接口地址
 			if [ $? -ne 0 ];then
 				print_color 9 "代理检测失败，中断后续连接..."
 				return
