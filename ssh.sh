@@ -30,6 +30,7 @@ ssh() {
 			else
 				local proxyType="http://"
 			fi
+			#awk里面正则表达式不要乱加ig标识符，会要命
 			local proxyServer=$(echo $ProxyFind|awk -F '' '{gsub(/^[ \t\r\n]*/,"",$0);r=match($0,/(([0-9]{1,3}\.){3}[0-9]{1,3}[:][0-9]{2,5})/,arr);print arr[1]}')
 			curl -sS -m 1 --connect-timeout 1 -x ${proxyType}${proxyServer} http://xxx.xxx.xxx/ipfull/
 			if [ $? -ne 0 ];then
@@ -37,6 +38,14 @@ ssh() {
 				return
 			fi
 			echo -e "\n\c"
+		else  #安全起见，检测是否是禁止使用真实IP直接连接的主机
+			local targetHost=$(echo "$@"|awk '{gsub(/-t .*$/,"");print $NF;}')
+			local findHostMark=$(eval sshfind "$targetHost"|grep -iE '^host .*\b'"$targetHost"'\b.*$|^[^#]*proxy')
+			if [ $(echo "$findHostMark"|wc -l) -eq 1 ] && [[ "$findHostMark" == *"aliyun"* ]];then
+				print_color 40 "$targetHost 该主机禁止使用本机IP直连，请使用跳板机或网络代理...."
+				echo "程序退出..."
+				return
+			fi
 		fi
 	elif [[ "$*" =~ "-J" || "${*,,}" =~ "proxycommand=" ]];then
 		local proxyMethod=$(echo "$*"|awk '/\-J /{r=gensub(/^.*-J +([^ ]+).*$/,"\\1","g"); \
@@ -45,11 +54,9 @@ ssh() {
 			print "网络代理 "r;}')  
 			#注意：gensub函数有的awk版本没有此功能,See Also：https://stackoverflow.com/questions/1555173/gnu-awk-accessing-captured-groups-in-replacement-text
 		print_color 40 "Notice：命令行指定了中继代理 \"${proxyMethod}\" 连接目标主机..."
-		
 	fi
 	##以下使用可执行程序绝对路径调用，否则会陷入无限循环调用函数本身
 	/usr/bin/ssh "$@"
-}
 
 nossh() {
 	# 让 ssh 不读取任何配置文件(例如：~/.ssh/config)，直接执行命令
