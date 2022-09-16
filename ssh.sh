@@ -30,11 +30,8 @@ ssh() {
 			else
 				local proxyType="http://"
 			fi
-			#awk里面正则表达式不要乱加ig标识符，会要命
 			local proxyServer=$(echo $ProxyFind|awk -F '' '{gsub(/^[ \t\r\n]*/,"",$0);r=match($0,/(([0-9]{1,3}\.){3}[0-9]{1,3}[:][0-9]{2,5})/,arr);print arr[1]}')
-			#echo $ProxyFind|awk -F '' '{gsub(/^[ \t\r\n]*/,"",$0);print $0;r=match($0,/(([0-9]{1,3}\.){3}[0-9]{3}[:][0-9]{2,5})/,arr);print "Return: "r;print "Rstart & RLENGTH：" RSTART" " RLENGTH;print arr[1];for(i in arr){print "subscript:"i"\t""valus:"arr[i]}}'
-			#echo -e "$proxyServer"
-			curl -sS -m 1 --connect-timeout 1 -x ${proxyType}${proxyServer} http://xxxx.xxxx.xxx/  #xxxx.xxxx.xxx为查询IP归属地的接口地址
+			curl -sS -m 1 --connect-timeout 1 -x ${proxyType}${proxyServer} http://xxx.xxx.xxx/ipfull/
 			if [ $? -ne 0 ];then
 				print_color 9 "代理检测失败，中断后续连接..."
 				return
@@ -43,7 +40,7 @@ ssh() {
 		fi
 	elif [[ "$*" =~ "-J" || "${*,,}" =~ "proxycommand=" ]];then
 		local proxyMethod=$(echo "$*"|awk '/\-J /{r=gensub(/^.*-J +([^ ]+).*$/,"\\1","g"); \
-			print "跳板机 "r;} \
+			print "跳板机 "r;exit;} \
 			/proxycommand=/i{r=gensub(/^.* ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}:[0-9]{2,5}).*$/,"\\1","g");\
 			print "网络代理 "r;}')  
 			#注意：gensub函数有的awk版本没有此功能,See Also：https://stackoverflow.com/questions/1555173/gnu-awk-accessing-captured-groups-in-replacement-text
