@@ -94,6 +94,7 @@ _mysql-backup-db() {
 	local mysqlOptions="-h127.0.0.1 -uroot -proot"
 	local options=( )
 	local dbName
+	local dbNames=( ) #保存多个数据库名称，以供同时选择多个数据库
 	local sqlFilePrefix=""  #导出SQL备份文件名的前缀;eg：localhost_
 	local sqlFileName="{prefix}{db}_{datetime}.sql"   #导出SQL文件名的命名格式
 	
@@ -134,7 +135,8 @@ _mysql-backup-db() {
 		echo "$dbList"|awk '{print NR")："$0}'
 		while [ -z "$selectDB" ];
 		do
-			read -p "输入序号选择（输入 0 或 q 退出操作，p 再次打印数据库清单）：" selectDB
+			read -p "输入序号选择，可一次选择多个数据库（多个序号用空格隔开）;"$'\n'"\
+其他操作：（输入 0 或 q 退出操作，p 再次打印数据库清单）：" selectDB
 			if [ -z "$selectDB" ];then
 				continue
 			elif [[ "${selectDB,,}" == "0" || "${selectDB,,}" == "q" ]];then
@@ -144,23 +146,32 @@ _mysql-backup-db() {
 				echo "$dbList"|awk '{print NR")："$0}'
 				selectDB="" && continue
 			fi
-			dbName=$(echo "$dbList"|awk 'NR=='"${selectDB}"'{print $0;exit}' 2>/dev/null||selectDB="")
-			#echo "dbName：$dbName"
-			[ -z "$dbName" ] && print_color 40 "无效选择！" && selectDB=""
+			mapfile -t -d $' ' selectArr<<<"$selectDB"
+			dbNames=( ) # <--- 为避免多次循环交互时出错，每次都清空数据库名称数组；当然也可以选择不清空，则会把先后多次选择的有效的数据库名称合并追加；
+			for selectDB in ${selectArr[@]};
+			do
+				dbName=$(echo "$dbList"|awk 'NR=='"${selectDB}"'{print $0;exit}' 2>/dev/null||selectDB="")
+				#echo "dbName：$dbName"
+				[ -z "$dbName" ] && print_color 40 "无效选择！" && selectDB=""
+				[ ! -z "$dbName" ] && dbNames=(${dbNames[@]} "$dbName")
+			done
 		done
 	fi
-	local sqlFile=$(echo "$sqlFileName"|\
-	sed -e "s/{prefix}/${sqlFilePrefix}/g" \
-		-e "s/{db}/${dbName}/g" \
-		-e "s/{datetime}/$(date +'%Y%m%d_%H%M')/g" \
-	) #按导出文件名命令规则生成文件名
-	echo "备份数据库：$dbName => $sqlFile"
-	/usr/bin/mysqldump $mysqlOptions --opt --single-transaction $dbName >$sqlFile
-	if [ $? -eq 0 ];then
-		print_color "数据库 $dbName 导出完成！"
-	else
-		print_color 40 "警告：$dbName 导出失败！"
-	fi
+	for dbName in ${dbNames[@]};
+	do
+		local sqlFile=$(echo "$sqlFileName"|\
+		sed -e "s/{prefix}/${sqlFilePrefix}/g" \
+			-e "s/{db}/${dbName}/g" \
+			-e "s/{datetime}/$(date +'%Y%m%d_%H%M')/g" \
+		) #按导出文件名命令规则生成文件名
+		echo "备份数据库：$dbName => $sqlFile"
+		/usr/bin/mysqldump $mysqlOptions --opt --single-transaction $dbName >$sqlFile
+		if [ $? -eq 0 ];then
+			print_color "数据库 $dbName 导出完成！"
+		else
+			print_color 40 "警告：$dbName 导出失败！"
+		fi
+	done
 	print_color 33 "All things Done..."
 }
 alias mysql-export-db='mysql-backup-db'
