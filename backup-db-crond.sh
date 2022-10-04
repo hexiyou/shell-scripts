@@ -27,10 +27,10 @@ echo "终止已有的 ssh 进程..."
 killall ssh
 
 #eg：备份单个数据库
-ssh-backup-db -so '-J kunming' -lo '-h127.0.0.1 -P4306 -uroot -p'"$MySQLROOTPWD" $DBHost <<<"$DBName"
+ssh-backup-db -so '-J kunming' -lo '-h127.0.0.1 -P4306 -uroot -p'"$MySQLROOTPWD" --prefix "$SQLPREFIX" $DBHost <<<"$DBName"
 
 #eg：备份多个数据库：
-#ssh-backup-db -so '-J kunming' -lo '-h127.0.0.1 -P4306 -uroot -p'"$MySQLROOTPWD" $DBHost <<<"0"
+#ssh-backup-db -so '-J kunming' -lo '-h127.0.0.1 -P4306 -uroot -p'"$MySQLROOTPWD"  --prefix "$SQLPREFIX" $DBHost <<<"0"
 #mysql-list-db -h127.0.0.1 -P4306 -uroot -p${MySQLROOTPWD}
 #for db in ${DBNames[@]};
 #do
