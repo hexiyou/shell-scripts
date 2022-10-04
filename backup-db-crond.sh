@@ -41,7 +41,7 @@ ssh-backup-db -so '-J kunming' -lo '-h127.0.0.1 -P4306 -uroot -p'"$MySQLROOTPWD"
 
 echo "终止隧道进程..."
 #findport 4306 <<<"yes"
-[ -z "$RemoteIP" ] && findremoteip $RemoteIP ssh <<<"yes"
+[ ! -z "$RemoteIP" ] && findremoteip $RemoteIP ssh <<<"yes"
 
 echo "Gzip 压缩SQL文件..."
 gzip *.sql
