@@ -17,6 +17,8 @@ source /v/bin/aliaswinapp
 
 MySQLROOTPWD="123456789"  #定义 MySQL ROOT 密码，其他普通用户密码也可，修改以下代码中的用户名为对应用户，但注意确认该用户是否有足够的权限
 DBHost="racknerd" #定义要连接的目标主机，在~/.ssh/config中定义
+RemoteIP="" #远程主机的IP，方便备份完成后对网络连接相关进程进行过滤查找，并终止隧道进程！
+SQLPREFIX="" #导出SQL文件的前缀，比如可用server_online_区分本地数据还是线上数据，默认为空
 DBName="exampledb_1" #定义要备份的数据库名称
 DBNames=("exampledb_1" "information_schema" "performance_schema") #定义数据，备份多个数据库的名称
 
@@ -35,7 +37,15 @@ ssh-backup-db -so '-J kunming' -lo '-h127.0.0.1 -P4306 -uroot -p'"$MySQLROOTPWD"
 #	mysql-backup-db -h127.0.0.1 -P4306 -uroot -p${MySQLROOTPWD} <<<"$db"
 #done
 
-killall ssh
+#killall ssh
+
+echo "终止隧道进程..."
+#findport 4306 <<<"yes"
+[ -z "$RemoteIP" ] && findremoteip $RemoteIP ssh <<<"yes"
+
+echo "Gzip 压缩SQL文件..."
+gzip *.sql
+
 echo "Execute All Backup Task Done..."
 
 popd &>/dev/null
