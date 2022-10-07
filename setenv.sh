@@ -10,7 +10,7 @@ setenv() {
 		echo -e "User Defined Function setenv：\n\t添加Windows环境变量，具体请参看 SetEnvironment.vbs 的用法.\n"
 		echo -e "\t快捷用法一：参数一传递 pwd 可添加当前路径到 Windows PATH 变量，（eg. setenv pwd）"
 		echo -e "\t快捷用法二：参数一传递 get 可查询当前 Windows PATH 变量的值，（eg. setenv get）\n"
-		cmd /c cscript //nologo `echo $apppath|cygpath -w -f-` $@
+		cmd /c cscript //nologo `echo $apppath|cygpath -w -f-` "$@"
 		return
 	elif [ $# -eq 1 ] && [[ "$1" == "pwd" ]];then
 		echo -e "添加当前路径到 Windows PATH 环境变量..."
@@ -31,10 +31,10 @@ setenv() {
 		return
 	fi
 	[[ "$(isadmin)" == "yes" ]] && {
-		cmd /c cscript //nologo `echo $apppath|cygpath -w -f-` -q $@
+		cmd /c cscript //nologo `echo $apppath|cygpath -w -f-` -q "$@"
 		return
 	}
-	wsudo -A -H cscript //nologo `echo $apppath|cygpath -w -f-` $@
+	wsudo -A -H cscript //nologo `echo $apppath|cygpath -w -f-` "$@"
 	else
 	echo -e "program not found!\npath：${apppath//\\/\\\\} "
 	fi

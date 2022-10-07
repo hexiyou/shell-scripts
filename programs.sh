@@ -131,7 +131,7 @@ elif [[ "$1" == "-L" ]] || [[ "$1" == "-F" ]];then
 	elif [ $# -eq 1 ];then
 		echo "$programs"|grep -i $1
 	else
-		echo "$programs"|grep $@
+		echo "$programs"|grep "$@"
 	fi
 	exit 0
 ##以下情况向grep直接传递参数,直接接收grep原生各项参数
@@ -145,9 +145,9 @@ elif [[ "$1" == "-A" ]];then
 	. ~/.bashrc >/dev/null
 	allAlias=$(alias -p|grep -iE '^alias '|awk -F '[ =]' '{print $2}')
 	programs=$(echo -e "$programs\n$allAlias"|sort -d)
-	echo "$programs"|grep $@
+	echo "$programs"|grep "$@"
 	exit 0
 else
 	#仅列出/v/bin/aliaswinapp中函数定义，并供grep原生参数查找
-	echo "$programs"|grep $@
+	echo "$programs"|grep "$@"
 fi

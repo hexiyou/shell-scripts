@@ -5,11 +5,11 @@ wmysql() {
 	[ ! -z "$MYSQLBIN" ] && apppath="$MYSQLBIN"  ## 环境变量存在值则使用环境变量作为mysql.exe路径
 	if [ -e "${apppath}" ];then
 		#`cygpath -au "$apppath"` $@
-		`cygpath -au "$apppath"` --default-character-set=utf8mb4 $@	
+		`cygpath -au "$apppath"` --default-character-set=utf8mb4 "$@"	
 	else
 		local MySQLDBIN=$(wmicps mysqld.exe 2>/dev/null|dos2unix -q|iconv -f GBK -t utf-8|awk -F '=' '/ExecutablePath=/{sub($1"=","");print $0;exit;}')
 		if [ -e "$MySQLDBIN" ];then
-			`cygpath -au "${MySQLDBIN/mysqld.exe/mysql.exe}"` $@
+			`cygpath -au "${MySQLDBIN/mysqld.exe/mysql.exe}"` "$@"
 			return
 		fi
 		echo -e "program not found!\npath：${apppath//\\/\\\\} "

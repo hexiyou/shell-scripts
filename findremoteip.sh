@@ -17,13 +17,13 @@ findremoteip() {
 	[ ! -z "$1" ] && [[ ! "${1,,}" == "/v" && ! "${1,,}" == "-v" ]] && psName="$1" && shift
 	#local netstatInfo=$(cmd /c netstat -ano -p TCP|grep ":$port ")
 	local netstatInfo=$(cmd /c netstat -ano -p TCP|awk '{if(match($3,/^'"$remoteIP"':/)){print}}')
-	echo "$netstatInfo"
+	[ ! -z "$netstatInfo" ] && echo "$netstatInfo"
 	#local pid=$(echo "$netstatInfo"|grep 'LISTENING'|awk '{print $NF;exit}'|tr -d '\n\r')
 	local pids=$(echo "$netstatInfo"|grep 'ESTABLISHED'|awk '{print $NF}'|dos2unix -q)
 	if [ -z "$pids" ]
 	then
 		echo "$remoteIP 地址没有找到相关进程..."
-		return 0
+		return 1
 	fi
 	for pid in $pids; #对多个远程IP关联进程依次处理！
 	do

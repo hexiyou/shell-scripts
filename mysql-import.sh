@@ -163,5 +163,5 @@ mysqlimport() {
 	#	--lines-terminated-by="\r\n"  mytbl dump.txt
 	# mysqlimport -u root -p --local --columns=b,c,a \
     #	mytbl dump.txt
-	/usr/bin/mysqlimport $@
+	/usr/bin/mysqlimport "$@"
 }

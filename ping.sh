@@ -6,7 +6,7 @@ ping() {
 		host=$(/usr/bin/env python3 /v/bin/python-parseurl.py "$1")
 		[ ! -z "$host" ] && _ping $host
 	else
-		_ping $@
+		_ping "$@"
 	fi
 }
 
@@ -39,5 +39,5 @@ _ping(){
 			fi
 		fi
 	fi
-	/usr/bin/ping $@
+	/usr/bin/ping "$@"
 }

@@ -12,12 +12,12 @@ findport() {
 	shift
 	#local netstatInfo=$(cmd /c netstat -ano -p TCP|grep ":$port ")
 	local netstatInfo=$(cmd /c netstat -ano -p TCP|awk '{if(match($2,/'":$port"'$/)){print}}')
-	echo "$netstatInfo"
+	[ ! -z "$netstatInfo" ] && echo "$netstatInfo"
 	local pid=$(echo "$netstatInfo"|grep 'LISTENING'|awk '{print $NF;exit}'|tr -d '\n\r')
 	if [ -z "$pid" ]
 	then
 		echo "$port 端口没有找到相关进程..."
-		return 0
+		return 1
 	fi
 	if [ ! -z "$1" ] && [[ "${1,,}" == "/v" || "${1,,}" == "-v" ]]
 	then

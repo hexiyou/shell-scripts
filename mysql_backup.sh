@@ -281,17 +281,17 @@ alias mysql-backup-db2='_mysql-backup-db-by-name'
 mysql-backup-db() {
 	#wrapper函数，自动判断按序号还是按数据库名导出数据库
 	if [ -t 0 ];then
-		_mysql-backup-db $@
+		_mysql-backup-db "$@"
 	else #有管道数据传入
 		local stdin=$(cat)
 		expr $stdin + 0 &>/dev/null
 		if [ $? -eq 0 ];then
-			_mysql-backup-db $@ </dev/stdin   #按序号备份文件夹
+			_mysql-backup-db "$@" </dev/stdin   #按序号备份文件夹
 		else
 			#_mysql-backup-db-by-name $@ </dev/stdin #按数据库名称备份文件夹
 			for db in `echo "$stdin"|dos2unix -q|tr -d ' '`; #兼容性处理
 			do
-				_mysql-backup-db-by-name $@ <<<"$db"
+				_mysql-backup-db-by-name "$@" <<<"$db"
 			done
 		fi
 	fi
