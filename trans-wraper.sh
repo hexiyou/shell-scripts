@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 trans() {
 	#劫持trans同名命令，缺省详细参数时自动判断需要中翻英还是英翻中
 	#执行脚本：/v/bin/trans
@@ -19,10 +20,12 @@ EOF
 	OLD_IFS=$IFS
 	IFS=$(echo -e "\n")
 	local audioFile=""
+	local audioPlayCount=1 #翻译的语音文件播放次数，默认为1
 	local pointLang=0 #参数中是否指定了特定的翻译语言，1为已指定，0为未指定
 	local originOptions=( $@ )
 	local inputTmpFile="/tmp/text-to-translate-tmp.txt"
 	local inputFileOptions=( )
+	
 	while [ $# -gt 0 ];
 	do
 		if [[ "${1,,}" == "-download-audio-as" ]];then
@@ -37,20 +40,31 @@ EOF
 		cat|dos2unix -q|tr '\n' ' ' >"$inputTmpFile" # <-- 干掉换行
 		inputFileOptions=("-i" "$inputTmpFile")
 	fi
+	#判断最后一个参数是否是纯数字，如果是，则认定为循环播放音频的次数
+	expr ${originOptions[$#-1]} + 0 &>/dev/null   #也可以使用 "${@:$#}" OR ${originOptions[@]:$(($#-1))}
+	if [ $? -eq 0 ];then
+		audioPlayCount="${originOptions[$#-1]}"
+		unset originOptions[$#-1]
+	fi
 	set -- ${inputFileOptions[@]} ${originOptions[@]}
 	#判断参数起始字符是否是中文字符，从而决定中翻英还是英翻中
 	if [ $pointLang -eq 0 ] && [[ "${1,,}" =~ ^[^0-9a-z\-] ]];then
-		/v/bin/trans :en $@
+		/v/bin/trans :en "$@"
 	else
-		/v/bin/trans $@
+		/v/bin/trans "$@"
 	fi
 	IFS=$OLD_IFS
 	#是否自动播放语音文件（依赖于/v/bin/playaudio,实际调用程序cmdmp3）
 	#命令行播放音频第三方程序：cmdmp3（https://lawlessguy.wordpress.com/2015/06/27/update-to-a-command-line-mp3-player-for-windows/）
 	if [[ "$*" =~ "-download-audio-as" ]] && [ -f "$audioFile" ];then
 		print_color "播放语音文件..."  #注意：翻译文本过长可能导致生成的语音文件无效，具体限制未知，尽量缩短文本，控制在40s以内；（可能是脚本处理过程错误，并非官方限制）
-		playaudio $audioFile
-		#cygstart $audioFile
+		local i=1
+		while [ $i -le $audioPlayCount ];
+		do
+			playaudio $audioFile
+			#cygstart $audioFile
+			let i+=1
+		done
 		[ -f "$audioFile" ] && rm -vf $audioFile
 	fi
 }
@@ -74,16 +88,16 @@ trans1() {
 		#echo "需要调换参数顺序..."
 		transTarget="$1" && shift
 	fi
-	set -- "$@" "$transTarget" # <--- 注意 $@ 加双引号，否则英文句子会被分成多个参数传递
+	set -- "$transTarget" "$@" # <--- 注意 $@ 加双引号，否则英文句子会被分成多个参数传递
 	#set -x
 	OLD_IFS=$IFS
 	IFS=$(echo -e "\n")
 	if [ ! -t 0 ];then
 		#echo "有管道内容"
-		trans $@ -download-audio-as /tmp/textaudio.mp3 <<<$(cat)
+		trans -download-audio-as /tmp/textaudio.mp3 "$@" <<<$(cat)
 	else
 		#echo "无管道内容"
-		trans $@ -download-audio-as /tmp/textaudio.mp3 </dev/null
+		trans -download-audio-as /tmp/textaudio.mp3 "$@" </dev/null
 	fi
 	IFS=$OLD_IFS
 	#set +x
@@ -110,7 +124,7 @@ alias trans-vi='trans1 :vi' #翻译为越南语
 alias trans-yn=trans-vi
 alias trans-th='trans1 :th' #翻译为泰语
 alias trans-tai=trans-th
-alias trans-tl='trans1 :tl' #翻译为菲律宾
+alias trans-tl='trans1 :tl' #翻译为菲律宾语
 alias trans-fei=trans-tl
 alias trans-zh='trans1 :zh-CN' #翻译为简体中文
 alias trans-cn=trans-zh
