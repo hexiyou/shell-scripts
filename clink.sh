@@ -25,13 +25,24 @@ inclink() {
 	## 注意此处使用目录软连接指向最新版本clink
 	local apppath="/v/clink/clink/clink.bat"
 	if [ -e "${apppath}" ];then
-		#下面两行区别在于是否传递Cygwin的$HOME等环境变量，因该设置在一些程序中表现会有差别，比如cargo
-		#PATH="${ORIGINAL_PATH}" cmd /k `cygpath -aw "$apppath"` inject $@
-		PATH="${ORIGINAL_PATH}" HOME="" TEMP="$LOCALAPPDATA\\Temp" TMP="$LOCALAPPDATA\\Temp" cmd /k `cygpath -aw "$apppath"` inject "$@"
+		if [[ "${1,,}" == "--clean" ]];then
+			#以下以更纯净的方式的方式运行clink（借助env命令携带尽可能少的环境变量）
+			shift 1 #移除--clean参数本身
+			/usr/bin/env -i - PROCESSOR_ARCHITECTURE="$PROCESSOR_ARCHITECTURE" PROCESSOR_IDENTIFIER="$PROCESSOR_IDENTIFIER" \
+				PROCESSOR_LEVEL="$PROCESSOR_LEVEL" PROCESSOR_REVISION="$PROCESSOR_REVISION" OS="$OS" SYSTEMDRIVE="$SYSTEMDRIVE" SYSTEMROOT="$SYSTEMROOT" \
+				PATH="${ORIGINAL_PATH}" HOMEDRIVE="$HOMEDRIVE" HOMEPATH="$HOMEPATH" USERNAME="$USERNAME" USERPROFILE="$USERPROFILE" \
+				TEMP="$LOCALAPPDATA\\Temp" TMP="$LOCALAPPDATA\\Temp" cmd /k `cygpath -aw "$apppath"` inject "$@"
+		else
+			#-------------------------------
+			#下面两行区别在于是否传递Cygwin的$HOME等环境变量，因该设置在一些程序中表现会有差别，比如cargo
+			#PATH="${ORIGINAL_PATH}" cmd /k `cygpath -aw "$apppath"` inject $@
+			PATH="${ORIGINAL_PATH}" HOME="" TEMP="$LOCALAPPDATA\\Temp" TMP="$LOCALAPPDATA\\Temp" cmd /k `cygpath -aw "$apppath"` inject "$@"
+		fi
 	else
 		echo -e "program not found!\npath：${apppath//\\/\\\\} "
 	fi
 } 
+alias clink1='inclink'
 
 wtclink() {
     ## Run Clink in Windows Terminal
