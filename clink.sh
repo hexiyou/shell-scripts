@@ -39,7 +39,7 @@ wtclink() {
 	local apppath="/v/clink/clink/clink.bat"
 	local workDIR=$(cygpath -aw "$PWD") #如果 Window Terminal配置文件设置了“使用父进程目录”，则此项参数可不进行传递
 	if [ -e "${apppath}" ];then
-		_T="${workDIR}" windowsTerminal "new-tab --title Clink -d ${workDIR} %SystemRoot%\System32\cmd.exe /s /k \"\"""$(cygpath -aw $apppath)""\" inject \"" "$@"
+		_T="${workDIR}" windowsTerminal new-tab --title Clink -d ${workDIR} "%SystemRoot%\System32\cmd.exe" /s /k \"$(cygpath -aw $apppath)\" inject "$@"
 	else
 		echo -e "program not found!\npath：${apppath//\\/\\\\} "
 	fi
