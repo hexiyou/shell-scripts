@@ -18,13 +18,14 @@ findservice() {
 		local serviceInfo=$(cmd /c tasklist /svc /NH /FI "IMAGENAME EQ ${parameter}"|iconv -s -f GBK -t UTF-8)
 	fi
 	echo -e "关联服务信息查询：$serviceInfo"
-	local serviceName=$(echo "$serviceInfo"|tr -s '[\t ]'|grep "${parameter}"|tac|dos2unix -q|awk -F '[\t ]' '{print $(NF-1);exit}') #目前仅适配关联一个服务的情况，关联多个服务暂不考虑
+	local serviceName=$(echo "$serviceInfo"|tr -s '[\t ]'|grep "${parameter}"|tac|dos2unix -q|awk -F '[\t ]' \
+	'{srvname="";for(i=3;i<NF;i++){srvname=sprintf("%s %s",srvname,$i)};sub(" ","",srvname);print srvname;exit}') #目前仅适配关联一个服务的情况，关联多个服务暂不考虑
 	if [ ! -z "$serviceName" -a ! "$serviceName" = "N/A" -a ! "$serviceName" = "暂缺" ];then	
 		read -p ">> 进程发现关联服务，是否需要停止服务 “$serviceName”? yes/no(y/n),默认No： " stopService
 		if [[ "${stopService,,}" == "y" || "${stopService,,}" == "yes" ]];then
 			echo ">>> Stop Service ..."
 			gsudo net stop "$serviceName"
-			echo "To find process service again ..."
+			echo "To find process associated service again ..."
 			findservice "$parameter"
 		fi
 	elif [ ! -z "$serviceName" ];then
