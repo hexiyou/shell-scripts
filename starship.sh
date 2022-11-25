@@ -46,11 +46,9 @@ starship() {
 			[ -f "$USERPROFILE\\.config\\starship.toml" ] && rm -f "$USERPROFILE\\.config\\starship.toml"
 			echo "Remove .config/starship.toml File Done..."
 		elif [[ "${1,,}" == "--refresh" ]]; #刷新starship配置：清除Windows下starship的配置文件后运行starship
+		then
 			starship --clean
 			shift && starship "$@" && return #刷新配置文件并运行starship：`starship --refresh`、`starship --refresh inner`
-		then
-			[ -f "$USERPROFILE\\.config\\starship.toml" ] && rm -f "$USERPROFILE\\.config\\starship.toml"
-			echo "Remove .config/starship.toml File Done..."
 		else  #传递starship.exe的其他命令行选项，eg：starship --help
 			"$apppath" "$@"
 		fi
