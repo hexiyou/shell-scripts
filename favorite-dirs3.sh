@@ -61,11 +61,19 @@ EOF
 	local mydirs="$mydirs"$'\n'"$(cat /v/bin/dirs.conf)"
 	mydirs=$(echo "$mydirs"|awk '{gsub(/^\s*/,"");print}') #去除目录名称开头的空格
 	local openerTool="explorer.exe"
+	local directPath  #标识传入的$1是否是一个真实存在的路径（如果是，直接打开目标路径，跳过交互式选择!）
 	while :;
 	do
 		#如果传入了$1参数，则对目录列表进行关键字搜索，而后仅列出匹配关键字的结果
 		if [ $# -eq 1 -a ! -z "$1" ];then
 			local mydirs=$(echo "$mydirs"|grep -i "$1")
+			if [ ! -z "$mydirs" -a -e "$1" -a $(echo "$mydirs"|wc -l) = 1 ];then
+				#echo "仅有一个匹配选项！"
+				directPath=1
+			elif [ -z "$mydirs" ];then
+				echo "没有任何匹配的选项！"
+				return
+			fi
 			break
 		elif [ $# -ge 1 ] && [[ "${1,,}" == "--open" ]];then #指定了额外程序替代资源管理器的情况
 			shift
@@ -87,7 +95,11 @@ EOF
 	set -f #关闭通配符拓展
 	while :;
 	do
-		read -p "请输入序号选择,可一次性输入多个选项[用空格隔开](输入 0 退出选择,输入 p 再次打印目录选项)：" dirChoose
+		if [[ "$directPath" == 1 ]];then
+			read -p "请输入序号选择,可一次性输入多个选项[用空格隔开](输入 0 退出选择,输入 p 再次打印目录选项)：" dirChoose <<<"1 0"
+		else
+			read -p "请输入序号选择,可一次性输入多个选项[用空格隔开](输入 0 退出选择,输入 p 再次打印目录选项)：" dirChoose
+		fi
 		if [ ! -z "$dirChoose" ];then
 			if [[ "${dirChoose,,}" == "p" ]];then
 				echo "$mydirs"|awk '{printf NR"): ";print}'
@@ -107,7 +119,7 @@ EOF
 						#echo "转换Shell路径到常规路径..."
 						local vbsShellApplication=$(cygpath -aw "/v/vbs/Get-Shell-Application.vbs")
 						local _targetDir=$(cscript.exe //nologo "$vbsShellApplication" "$targetDir"|dos2unix -q|iconv -f GBK -t UTF-8)
-						[ ! -z "$_targetDir" ] && local targetDir="$_targetDir" #只有在获取到有效的转换后路径才修改原始路径变量
+						[ ! -z "$_targetDir" ] && local targetDir="$_targetDir" || print_color 9 "WARNING：转换shell路径（$targetDir）失败！" #只有在获取到有效的转换后路径才修改原始路径变量
 					fi
 					if [[ "$targetDir" =~ ^[a-z]:\\ || "$targetDir" =~ ^/cygdrive/ || "$targetDir" =~ ^/ ]];then #常规路径模式下判断文件夹是否存在
 						if [ ! -e "$targetDir" ];then
@@ -129,6 +141,10 @@ EOF
 												/bin/bash --rcfile /tmp/sub-shell.sh;\
 												'
 								echo "你已退出 $targetDir @favorite-dirs 子 shell ..."
+							elif [[ "${openerTool,,}" == "wt" || "${openerTool,,}" == "windowsterminal" ]];then #用Windows Terminal打开指定目录
+								_T="$targetDir" eval wt
+							elif [[ "${openerTool,,}" == "cygwin" ]];then #用Cygwin打开指定目录(自动识别宿主窗口是Mintty还是Windows Terminal)
+								_T="$targetDir" eval cygwin "${targetDir//\\/\\\\}"
 							else
 								#cmd /c explorer.exe `cygpath -aw "$targetDir"`
 								cmd /c "$openerTool" `cygpath -aw "$targetDir"`
@@ -137,6 +153,7 @@ EOF
 					else #适配Shell:模式或Windows原生环境变量模式；
 						echo "Open Dir $targetDir ..."
 						#cmd /c explorer.exe "$targetDir"
+						[[ "${openerTool,,}" == "cygwin" || "${openerTool,,}" == "bash" ]] && targetDir="${targetDir//\\/\\\\}"
 						cmd /c "$openerTool" "$targetDir"
 					fi
 				else
