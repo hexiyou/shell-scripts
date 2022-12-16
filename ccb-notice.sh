@@ -7,9 +7,9 @@ ccb-notice() {
 	if [ ! -z "$listPage" ];then
 		echo -e "列表页网址：\n\t$listPage"
 		echo -e "————————————————————————————————————————————————————————————————————————"
-		local listContent=$(curl -ssL http://www.ccb.com/cn/v3/include/notice/zxgg_1.html 2>/dev/null|pquery 'div.section>div>ul a' -f '{title}|http://www2.ccb.com/cn/v3/include/notice/{href}')
+		local listContent=$(curl -ssL "$listPage" 2>/dev/null|pquery 'div.section>div>ul a' -f '{title}|http://www2.ccb.com/cn/v3/include/notice/{href}')
 		[ -z "$listContent" ] && print_color 9 "获取列表内容失败..." && return
-		local listDate=$(curl -ssL http://www.ccb.com/cn/v3/include/notice/zxgg_1.html 2>/dev/null|pquery 'div.section>div>ul span' -p text)
+		local listDate=$(curl -ssL "$listPage" 2>/dev/null|pquery 'div.section>div>ul span' -p text)
 		local tmpDateFile=$(mktemp)
 		echo "$listDate">$tmpDateFile
 		local listContent=$(echo "$listContent"|paste -d '|' $tmpDateFile -)
