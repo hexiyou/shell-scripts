@@ -47,6 +47,16 @@ ssh() {
 				return
 			fi
 		fi
+		#检查是否需要执行端口敲门指令（ssh port knock）
+		#See Also：https://goteleport.com/blog/ssh-port-knocking/
+		SSHKnockFind=`sshfind $1 1|grep -iE '#?SSHKnock ' 2>/dev/null`
+		if [ $? -eq 0 ];then
+			print_color "Notice：需要执行端口敲门命令（SSH Port Knock）..."
+			local sshKnockCommand=$(echo "$SSHKnockFind"|sed -e 's/^[\s\t]//g' -e 's/#SSHKnock //')
+			$sshKnockCommand
+			/usr/bin/ssh "$@"
+			return
+		fi
 	elif [[ "$*" =~ "-J" || "${*,,}" =~ "proxycommand=" ]];then
 		local proxyMethod=$(echo "$*"|awk '/\-J /{r=gensub(/^.*-J +([^ ]+).*$/,"\\1","g"); \
 			print "跳板机 "r;exit;} \
