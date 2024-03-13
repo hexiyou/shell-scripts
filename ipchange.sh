@@ -28,7 +28,7 @@ ipchange() {
 				print_color 40 "跳过删除IP..."
 			fi
 		fi
-		print_color 40 "是否添加规则，切换出口IP为 $outIP？(yes/y，no/n，默认为no)"
+		print_color 40 "是否添加规则，切换出口IP为 $changeToIP？(yes/y，no/n，默认为no)"
 		read -p "> " insertIP
 		[ -z "$changeToIP" ] && print_color 40 "没有指定要切换的出口IP，程序退出！" && return
 		if [[ "${insertIP,,}" == "y" || "${insertIP,,}" == "yes" ]];then 
