@@ -20,6 +20,8 @@ if(! "$hostName"){
 	print "缺少搜索关键字，将列出 ~/.ssh/config 全部主机！\n";
 }
 
+$hostName =~ s/[\^\$]/\\b/g if $hostName;         #支持在搜索模式中使用^或$进行边界匹配（匹配主机名开始或结束，更精确筛选结果，二者亦可以同时使用）
+
 open(SSHCONFIG,"<$sshConfigFile") or die "$sshConfigFile 文件无法打开, $!";
 
 while (<SSHCONFIG>) {
@@ -36,3 +38,4 @@ while (<SSHCONFIG>) {
 }
 
 print "\n找到主机 $foundCount 个\n";
+
