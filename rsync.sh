@@ -5,6 +5,9 @@
 rsync() {
 	#劫持rsync同名命令，转换参数中的Windows路径为Unix路径;
 	#目的：适配在Windows Terminal拖动文件的情况
+	#进程替换、tee单独重定向STDERR请参考以下资料；
+	#See Also：https://stackoverflow.com/questions/692000/how-do-i-write-standard-error-to-a-file-while-using-tee-with-a-pipe
+	#See Also2：https://stackoverflow.com/questions/363223/how-do-i-get-both-stdout-and-stderr-to-go-to-the-terminal-and-a-log-file
 	:<<'EOF'
 	#劫持rsync同名命令，转换参数中的Windows路径为Unix路径;
 	#目的：适配在Windows Terminal拖动文件的情况;
@@ -17,6 +20,7 @@ EOF
 	local Options=()
 	local _timeSleep=5
 	local _rsyncCount=-1
+	local _rsyncStderr=$(mktemp --suffix=.stderr)
 	while [ $# -gt 0 ];
 	do
 		if [[ "${1,,}" =~ ^\- ]];then
@@ -39,18 +43,25 @@ EOF
 	while [ $retCode -eq 255 -o $retCode -ne 0 ];
 	do
 	    [ $retCode -eq 255 ] && unset -v retCode #手动销毁255状态码，避免跟下边的用户Ctrl+C中断退出码混淆
-		/usr/bin/rsync "$@"
+		/usr/bin/rsync "$@" >&1 2> >(tee $_rsyncStderr >&2)
 		local retCode=$?
 		let _runCount+=1
 		[ -z "$RSYNCLOOP" ] && break
 		#[ -z "$RSYNCLOOP" ] && __return $retCode
 		echo "\$retCode：$retCode"
 		[ $_rsyncCount -ne -1 ] && [ $_runCount -ge $_rsyncCount ] && break
-		[ $retCode -eq 255 -o $retCode -eq 20 ] && break  #<---返回码255或20表示用户键入Ctrl+C中断
+		#echo -e "----------------------  cat test   -----------------------------"
+		#cat "$_rsyncStderr"
+		#echo -e "----------------------cat test end -----------------------------"
+		[ -z "$(cat $_rsyncStderr)" ] && break || {   #错误日志为空表示用户Ctrl+C中断退出;
+			cat "$_rsyncStderr"|grep -i 'received SIGINT, SIGTERM, or SIGHUP' &>/dev/null && break  #<---STDERR日志中包含“received SIGINT, SIGTERM, or SIGHUP”关键字表示用户Ctrl+C中断退出；
+		}
+		#[ $retCode -eq 255 -o $retCode -eq 20 ] && break  #<---返回码255或20表示用户键入Ctrl+C中断(20241009注：此方式判断有误，已废弃，服务器关闭连接、连接意外中断或用户Ctrl+C均有可能返回255状态码)
 		[ $retCode -ne 0 ] && {
 			[ -n "$RSYNCTIMESLEEP" ] && sleep $RSYNCTIMESLEEP || sleep $_timeSleep
 		}
 	done
+	[ -f "$_rsyncStderr" ] && rm -vf "$_rsyncStderr" &>/dev/null
 	return $retCode
 }
 
