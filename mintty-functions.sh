@@ -112,10 +112,14 @@ EOF
 		do 
 		[ -z "$tabOptions" ] && break
 		set -- $tabOptions  #<---此处变量不要用双引号包裹，否则会阻止set命令拆分参数
-		local titleFlag="settitle '$1'" && shift   #<---可指定多个参数选项（空格分隔），第一个参数认定为窗口标题，后续参数认定为传递给新窗口的要执行的命令；
+		[[ ! "${1,,}" == "null" ]] && { 
+			local titleFlag="settitle '$1'" && shift   #<---可指定多个参数选项（空格分隔），第一个参数认定为窗口标题，后续参数认定为传递给新窗口的要执行的命令；
+		    } || {
+			local titleFlag="settitlepath" && shift
+			}
 		[ -z "$*" ] && set -- ":"     #没有任何参数时，默认执行空命令（否则新窗口进程会直接退出）
 		set -- "$titleFlag;$*"
-		(mintty.exe -i /Cygwin-Terminal.ico $tabbarFlag -- /bin/bash --login -i -c "${*};ASMyBash=1 exec bash --login -i" &)&>/dev/null
+		(mintty.exe -i /Cygwin-Terminal.ico $tabbarFlag -- /bin/bash --login -i -c "${*};ASMyBash=1 _T=\"\$PWD\" exec bash --login -i" &)&>/dev/null
 		done <&0
 	fi
 }
