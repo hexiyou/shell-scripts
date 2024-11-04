@@ -121,34 +121,34 @@ echo -e "program not found!\nall paths：\n${apppaths[*]//\\/\\\\} "
 }
 
 everything-find() {
-#打开 EveryThing 在某个指定路径下搜寻文件；
-_print_usage(){
-    cat<<'EOF'
-everything-find|efind
-    调用并打开 Everything 工具窗口，直接在某个路径下搜索文件；
-    可传递 $1 参数指定要搜索的目录路径，缺省参数默认搜索Cygwin窗口当前工作目录 $PWD；
-Usage:
-    everything-find [target~path]
-Example:
-    everything-find                    #打开 Everything 在当前目录下搜索文件
-    efind .                            #同上，缩写形式（ efind 为 everything-find 的别名调用）
-    everything-find 'H:\Video'         #打开 Everything 在目录 H:\Video 下搜索文件
-    everything-find /opt/downloads     #目录路径参数可传递Linux Posix风格的路径
+    #打开 EveryThing 在某个指定路径下搜寻文件；
+    _print_usage(){
+        cat<<'EOF'
+    everything-find|efind
+        调用并打开 Everything 工具窗口，直接在某个路径下搜索文件；
+        可传递 $1 参数指定要搜索的目录路径，缺省参数默认搜索Cygwin窗口当前工作目录 $PWD；
+    Usage:
+        everything-find [target~path]
+    Example:
+        everything-find                    #打开 Everything 在当前目录下搜索文件
+        efind .                            #同上，缩写形式（ efind 为 everything-find 的别名调用）
+        everything-find 'H:\Video'         #打开 Everything 在目录 H:\Video 下搜索文件
+        everything-find /opt/downloads     #目录路径参数可传递Linux Posix风格的路径
 EOF
-}
-[[ "${*,,}" == "-h" || "${*,,}" == "--help" ]] && _print_usage && return
-if [ $# -eq 0 ];then
-    local dir="$(pwd)"
-else
-    local dir="$1"
-fi
-[ -n "$WSL_DISTRO_NAME" ] && local _cygpathFunc="_cygpath" || local _cygpathFunc="cygpath" #<---同时支持Cygwin或WSL下调用，确保路径转换结果正确；
-[ -n "$WSL_DISTRO_NAME" ] && local dir=$(echo "$dir"|$_cygpathFunc -au -f-) #<---WSL内调用兼容处理
-[ ! -d "$dir" ] && {
-    #[ ! "$(file_exist $dir)" ] && {
-    echo "Path Not Exist! ==> $dir"
-    return
-}
-everything -path "`$_cygpathFunc -aw $dir`"
+    }
+    [[ "${*,,}" == "-h" || "${*,,}" == "--help" ]] && _print_usage && return
+    if [ $# -eq 0 ];then
+        local dir="$(pwd)"
+    else
+        local dir="$1"
+    fi
+    [ -n "$WSL_DISTRO_NAME" ] && local _cygpathFunc="_cygpath" || local _cygpathFunc="cygpath" #<---同时支持Cygwin或WSL下调用，确保路径转换结果正确；
+    [ -n "$WSL_DISTRO_NAME" ] && local dir=$(echo "$dir"|$_cygpathFunc -au -f-) #<---WSL内调用兼容处理
+    [ ! -d "$dir" ] && {
+        #[ ! "$(file_exist $dir)" ] && {
+        echo "Path Not Exist! ==> $dir"
+        return
+    }
+    everything -path "`$_cygpathFunc -aw $dir`"
 }
 alias efind='everything-find'
