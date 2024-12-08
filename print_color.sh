@@ -46,7 +46,8 @@ EOF
 			shift
 		fi
 	fi
-	local str="$*"
+     local str="$*"
+	[ -z "$str" ] && [ ! -t 0 ] && local str=$(cat)  #有管道输入则使用管道中的文本作为输出文本，否则从调用参数中获取提示信息文本；
 	case $color in
 		1)
 		echo -e "\033[30m${str}\033[0m"
