@@ -121,7 +121,7 @@ EOF
 						local _targetDir=$(cscript.exe //nologo "$vbsShellApplication" "$targetDir"|dos2unix -q|iconv -f GBK -t UTF-8)
 						[ ! -z "$_targetDir" ] && local targetDir="$_targetDir" || print_color 9 "WARNING：转换shell路径（$targetDir）失败！" #只有在获取到有效的转换后路径才修改原始路径变量
 					fi
-					if [[ "$targetDir" =~ ^[a-z]:\\ || "$targetDir" =~ ^/cygdrive/ || "$targetDir" =~ ^/ ]];then #常规路径模式下判断文件夹是否存在
+					if [[ "$targetDir" =~ ^[a-zA-Z]:\\ || "$targetDir" =~ ^/cygdrive/ || "$targetDir" =~ ^/ ]];then #常规路径模式下判断文件夹是否存在
 						if [ ! -e "$targetDir" ];then
 							#echo -e "targetDir not exist!\n==>$targetDir"
 							print_color 9 "targetDir not exist! ==> $targetDir"
