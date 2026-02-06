@@ -32,6 +32,9 @@ EOF
 		fi
 		shift
 	done
+	if [ ! -z "$USESSHPASS" ];then   #指定USESSHPASS环境变量时，自动为密钥文件输入密码；
+		Options=("${Options[@]}" "-e" "$USESSHPASS")
+	fi
 	set -- "${Options[@]}"
 	local _runCount=0
 	if [ -n "$RSYNCLOOP" ];then
@@ -43,6 +46,7 @@ EOF
 	while [ $retCode -eq 255 -o $retCode -ne 0 ];
 	do
 	    [ $retCode -eq 255 ] && unset -v retCode #手动销毁255状态码，避免跟下边的用户Ctrl+C中断退出码混淆
+		#local _rsyncOutput=$(/usr/bin/rsync "$@" 2>&1|tee /dev/tty)
 		/usr/bin/rsync "$@" >&1 2> >(tee $_rsyncStderr >&2)
 		local retCode=$?
 		let _runCount+=1
@@ -50,13 +54,9 @@ EOF
 		#[ -z "$RSYNCLOOP" ] && __return $retCode
 		echo "\$retCode：$retCode"
 		[ $_rsyncCount -ne -1 ] && [ $_runCount -ge $_rsyncCount ] && break
-		#echo -e "----------------------  cat test   -----------------------------"
-		#cat "$_rsyncStderr"
-		#echo -e "----------------------cat test end -----------------------------"
 		[ -z "$(cat $_rsyncStderr)" ] && break || {   #错误日志为空表示用户Ctrl+C中断退出;
 			cat "$_rsyncStderr"|grep -i 'received SIGINT, SIGTERM, or SIGHUP' &>/dev/null && break  #<---STDERR日志中包含“received SIGINT, SIGTERM, or SIGHUP”关键字表示用户Ctrl+C中断退出；
 		}
-		#[ $retCode -eq 255 -o $retCode -eq 20 ] && break  #<---返回码255或20表示用户键入Ctrl+C中断(20241009注：此方式判断有误，已废弃，服务器关闭连接、连接意外中断或用户Ctrl+C均有可能返回255状态码)
 		[ $retCode -ne 0 ] && {
 			[ -n "$RSYNCTIMESLEEP" ] && sleep $RSYNCTIMESLEEP || sleep $_timeSleep
 		}
@@ -79,3 +79,41 @@ _rsyncloop() {
 	export RSYNCLOOP=1 RSYNCTIMESLEEP=6
 	rsync "$@"
 }
+
+rsyncpass() {
+	#封装rsync劫持函数，自动为rsync输入密钥密码短语；
+	declare USESSHPASS hostTarget host SSHKeyPassphrase KeyPassphrase
+	USESSHPASS=""
+	hostTarget="${@:$#}"
+	if [[ ! "$hostTarget" =~ ":" ]];then 
+		hostTarget="${@:$#-1:1}" 
+	fi
+	host=$(echo "$hostTarget"|perl -plne 's|:.*$||g')
+	SSHKeyPassphrase=`sshfind "${host}" 1|grep -iE '#KeyPassphrase ' 2>/dev/null`  #通过配置项KeyPassphrase检测密钥文件是否有密码
+	if [ ! -z "$SSHKeyPassphrase" ];then
+		>/dev/tty print_color "Notice：密钥文件包含密码短语，将为你自动输入..."
+		KeyPassphrase="$(echo ""$SSHKeyPassphrase""|perl -plne 's/^[\s\t]//g;s/#KeyPassphrase //i;s/^\s*|\s*$//g')"
+		local _pwdTmpFile=$(mktemp --suffix=.txt)
+		cat >$_pwdTmpFile< <(echo "$KeyPassphrase")
+		USESSHPASS="sshpass -f $_pwdTmpFile /usr/bin/ssh"
+	fi
+	USESSHPASS="$USESSHPASS" \
+	RSYNCLOOP="$RSYNCLOOP" \
+	RSYNCTIMESLEEP="$RSYNCTIMESLEEP" \
+	RSYNCMAXRETRY="$RSYNCMAXRETRY" \
+		rsync "$@"
+	>/dev/tty print_color 40 "rsyncpass 执行完毕..."
+	(
+		(sleep 3s;[ -f "$_pwdTmpFile" ] && rm -vf $_pwdTmpFile) &
+	)&>/dev/null   #延时删除临时文件
+}
+
+rsyncpassloop() {
+	#指定临时环境变量，rsyncpass命令返回失败时自动重试（调用rsyncpass函数,rsyncpass再调用rsync命令同名劫持函数）
+	RSYNCLOOP=1 RSYNCTIMESLEEP=6 rsyncpass "$@"
+}
+alias rsyncpassloop-1='rsyncpassloop'  #无限次重试
+alias rsyncpassloop5='RSYNCMAXRETRY=5 rsyncpassloop'  #5次重试rsyncpass
+alias rsyncpassloop10='RSYNCMAXRETRY=10 rsyncpassloop'  #10次重试rsyncpass
+alias rsyncpassloop50='RSYNCMAXRETRY=50 rsyncpassloop'  #50次重试rsyncpass
+alias rsyncpassloop100='RSYNCMAXRETRY=100 rsyncpassloop'  #100次重试rsyncpass
